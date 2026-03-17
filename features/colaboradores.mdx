@@ -1,0 +1,138 @@
+---
+title: "Colaboradores"
+description: "Manage employee records and their branch office assignments."
+---
+
+The Colaboradores module manages the employees (collaborators) who are registered in the system. Each collaborator is assigned to a branch office (sucursal) with a recorded distance, which is later used when creating trips.
+
+## Data model
+
+### `colaboradores` table
+
+| Column | Type | Description |
+|---|---|---|
+| `cl_cedula` | `VARCHAR(13)` (PK) | National ID number; used as the primary key |
+| `cl_nombre` | `VARCHAR` | First name |
+| `cl_apellido` | `VARCHAR` | Last name |
+| `cl_direccion` | `VARCHAR` | Home address |
+| `cl_estado` | `TINYINT` | `1` = active, `0` = soft-deleted |
+
+### `colaborador_sucursal` junction table
+
+Each collaborator is linked to a branch through the `colaborador_sucursal` table, which also stores the distance between the collaborator's address and the branch.
+
+| Column | Description |
+|---|---|
+| `cl_cedula` | Foreign key to `colaboradores` |
+| `sc_id` | Foreign key to `sucursales` |
+| `cs_distancia` | Distance in km from the collaborator's address to the branch |
+
+<Info>
+A collaborator must be assigned to exactly one branch at registration time. The branch assignment and distance are required fields.
+</Info>
+
+## Validation rules
+
+| Field | Rule |
+|---|---|
+| Sucursal | A branch must be selected; the field cannot be empty |
+| Distance (`cs_distancia`) | Must be an integer between `1` and `75` km |
+
+## Registering a collaborator
+
+Creating a collaborator is a **transactional operation**. The server writes to both `colaboradores` and `colaborador_sucursal` in a single database transaction. If either insert fails, the entire operation is rolled back.
+
+### Endpoint
+
+```
+POST /colaboradores/create
+```
+
+### Request fields
+
+<ParamField body="cl_cedula" type="string" required>
+  National ID (cédula) of the collaborator. Up to 13 characters. Used as the primary key.
+</ParamField>
+
+<ParamField body="cl_nombre" type="string" required>
+  First name of the collaborator.
+</ParamField>
+
+<ParamField body="cl_apellido" type="string" required>
+  Last name of the collaborator.
+</ParamField>
+
+<ParamField body="cl_direccion" type="string" required>
+  Home address of the collaborator.
+</ParamField>
+
+<ParamField body="sucursal" type="number" required>
+  The `sc_id` of the branch to assign the collaborator to. Cannot be empty.
+</ParamField>
+
+<ParamField body="distancia" type="number" required>
+  Distance in km between the collaborator's address and the assigned branch. Must be an integer between `1` and `75`.
+</ParamField>
+
+### Registration flow
+
+<Steps>
+  <Step title="Fill in the registration form">
+    Navigate to `/colaboradores` and complete the form with the collaborator's ID, name, last name, address, branch, and distance.
+  </Step>
+  <Step title="Validate input">
+    The server checks that a branch is selected and that the distance is a valid integer between 1 and 75.
+  </Step>
+  <Step title="Transactional write">
+    Within a single database transaction:
+    1. Insert a new record into `colaboradores` with `cl_estado = 1`.
+    2. Insert the branch assignment and distance into `colaborador_sucursal`.
+
+    If either step fails, both writes are rolled back.
+  </Step>
+  <Step title="Redirect">
+    On success, the server redirects to `/colaboradores`.
+  </Step>
+</Steps>
+
+## Updating a collaborator
+
+### Fetch current data
+
+```
+GET /colaboradores/update/:id
+```
+
+Returns the collaborator's current data as JSON for pre-populating the edit form. The `:id` parameter is the `cl_cedula`.
+
+### Submit update
+
+```
+POST /colaboradores/update
+```
+
+Updates the collaborator record. The same validation rules apply as for creation.
+
+## Soft delete
+
+```
+POST /colaboradores/delete/:id
+```
+
+Collaborators are never permanently removed. Deleting a collaborator sets `cl_estado = 0`, hiding them from the active collaborators list.
+
+<Warning>
+Soft-deleted collaborators (with `cl_estado = 0`) are excluded from the collaborators list and from trip creation dropdowns. Their historical trip records remain intact.
+</Warning>
+
+The list view at `GET /colaboradores` queries only records where `cl_estado = 1`.
+
+## Route summary
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/colaboradores` | List active collaborators with their branches |
+| `POST` | `/colaboradores/create` | Register a new collaborator (transactional) |
+| `GET` | `/colaboradores/update/:id` | Fetch collaborator data as JSON for editing |
+| `POST` | `/colaboradores/update` | Update a collaborator's record |
+| `POST` | `/colaboradores/delete/:id` | Soft-delete a collaborator (`cl_estado = 0`) |

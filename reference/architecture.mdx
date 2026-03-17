@@ -1,0 +1,204 @@
+---
+title: "Architecture"
+description: "How TRC is structured: MVC layers, request lifecycle, session management, and database connectivity."
+---
+
+TRC follows a classic server-side MVC pattern built on Express 5. The server renders all HTML via EJS templates and communicates state through HTTP redirects and in-memory sessions. A small number of routes return JSON for dynamic form population.
+
+## Directory structure
+
+```
+TRC/
+├── app.js                      # Entry point: loads models, mounts routes, starts server
+├── config/
+│   └── Conexion.js             # Sequelize instance and database connection config
+├── controllers/
+│   ├── loginController.js      # Session create/destroy
+│   ├── colaboradorController.js
+│   ├── sucursalController.js
+│   ├── viajesController.js
+│   ├── reportesController.js
+│   └── transportistaController.js
+├── models/
+│   ├── index.js                # Imports and re-exports all models
+│   ├── relaciones.js           # Defines Sequelize associations
+│   ├── colaboradoresModel.js
+│   ├── sucursalesModel.js
+│   ├── transportistasModel.js
+│   ├── viajesModel.js
+│   ├── userModel.js
+│   ├── rolModel.js
+│   └── suc_col_Model.js        # colaborador_sucursal junction model
+├── views/
+│   ├── index.ejs               # Login page
+│   ├── dashboard.ejs           # Standard user dashboard
+│   ├── dashboardAdmin.ejs      # Admin dashboard
+│   ├── colaboradores.ejs
+│   ├── viajes.ejs
+│   ├── sucursales.ejs
+│   ├── transportistas.ejs
+│   └── reportes.ejs
+├── public/                     # Static assets: CSS, client JS, images
+├── BD/
+│   └── sistema_viajes.sql      # Database schema and seed data
+└── package.json
+```
+
+## MVC layers
+
+<Columns cols={2}>
+  <Card title="Models" icon="database">
+    Defined with Sequelize 6 in `models/`. Each file exports a Sequelize model class. Associations (hasMany, belongsTo, belongsToMany) are configured in `models/relaciones.js` and loaded by `app.js` at startup.
+  </Card>
+  <Card title="Views" icon="layout-template">
+    EJS templates in `views/`. Controllers pass a data object to `res.render()`, which injects values into the template. No client-side framework is used; the server renders the full page on every navigation.
+  </Card>
+  <Card title="Controllers" icon="code">
+    One controller file per resource in `controllers/`. Each controller exports handler functions that are registered as route callbacks in `app.js`. Controllers call Sequelize model methods and either redirect, render a view, or return JSON.
+  </Card>
+  <Card title="Router (app.js)" icon="route">
+    All route definitions live in `app.js`. The file also initialises middleware (body parser, session, static files), loads models, and calls `sequelize.sync()` before starting the HTTP server.
+  </Card>
+</Columns>
+
+## Request lifecycle
+
+The following describes the path of a standard page request (e.g., `GET /colaboradores`):
+
+<Steps>
+  <Step title="Browser sends request">
+    The browser sends an HTTP request to the Express server. The request includes a session cookie if the user has previously logged in.
+  </Step>
+  <Step title="Middleware chain">
+    Express runs registered middleware in order:
+    1. `express.urlencoded()` — parses form bodies.
+    2. `express.static('public')` — serves static assets directly, bypassing the rest of the chain.
+    3. `express-session` — rehydrates `req.session` from the in-memory store using the cookie.
+  </Step>
+  <Step title="Route match">
+    Express matches the request path and method against the route definitions in `app.js`. The matching route's controller handler is invoked.
+  </Step>
+  <Step title="Session / auth check">
+    The controller reads `req.session.user` and checks the user's `rl_id`. If the session is missing or the role is insufficient, the controller redirects to `/` or `/dashboard`.
+  </Step>
+  <Step title="Sequelize query">
+    The controller calls Sequelize model methods (e.g., `Colaborador.findAll({ where: { cl_estado: 1 } })`). Sequelize translates this to a SQL query and sends it to the MySQL/MariaDB database over the connection pool defined in `config/Conexion.js`.
+  </Step>
+  <Step title="Response">
+    For page requests, the controller calls `res.render('colaboradores', { data })`, which merges the data object into `views/colaboradores.ejs` and sends the resulting HTML.
+
+    For JSON helper endpoints (e.g., `GET /viajes/:id`), the controller calls `res.json(result)` instead.
+
+    For write operations (create, update, delete), the controller calls `res.redirect('/colaboradores')` after the database write completes.
+  </Step>
+</Steps>
+
+## Session management
+
+Authentication is handled by `express-session` with the default in-memory store.
+
+```js
+// Session configuration in app.js
+app.use(session({
+  secret: '<session-secret>',
+  resave: false,
+  saveUninitialized: false
+}));
+```
+
+**Login flow:**
+1. `POST /user/login` receives `correo` and `contra`.
+2. `loginController.js` queries `usuarios` for the matching email.
+3. The plain-text password is compared against the stored bcrypt hash.
+4. On success, `req.session.user` is populated with the user record (including `rl_id`).
+5. The controller redirects to `/dashboardAdmin` if `rl_id = 1`, otherwise to `/dashboard`.
+
+**Logout flow:**
+1. `GET /cerrar` calls `req.session.destroy()`.
+2. The session is removed from the in-memory store.
+3. The controller redirects to `/`.
+
+<Warning>
+The in-memory session store does not persist across server restarts. All active sessions are lost when the process exits. For production deployments, replace the store with a persistent option such as `connect-redis` or `express-mysql-session`.
+</Warning>
+
+## Database connection
+
+The Sequelize instance is created in `config/Conexion.js` and exported for use by all model files.
+
+```js
+// config/Conexion.js (representative)
+const { Sequelize } = require('sequelize');
+
+const sequelize = new Sequelize('sistema_viajes', 'user', 'password', {
+  host: 'localhost',
+  dialect: 'mysql'
+});
+
+module.exports = sequelize;
+```
+
+Each model file imports this instance:
+
+```js
+// models/colaboradoresModel.js (representative)
+const sequelize = require('../config/Conexion');
+const { DataTypes } = require('sequelize');
+
+const Colaborador = sequelize.define('colaboradores', {
+  cl_cedula: { type: DataTypes.STRING(13), primaryKey: true },
+  // ...
+}, { timestamps: false });
+
+module.exports = Colaborador;
+```
+
+## Sequelize sync on startup
+
+`app.js` calls `sequelize.sync()` before the HTTP server starts listening. This validates that the Sequelize model definitions match the database schema (or creates missing tables in development).
+
+```js
+// app.js (representative)
+sequelize.sync().then(() => {
+  app.listen(3000, () => {
+    console.log('Server running on port 3000');
+  });
+});
+```
+
+<Info>
+`sequelize.sync()` without `{ force: true }` only creates tables that do not yet exist. It does not alter or drop existing tables. Use migrations (e.g., Sequelize CLI) to manage schema changes in production.
+</Info>
+
+## Sequelize associations
+
+Model associations are defined in `models/relaciones.js` and loaded by `models/index.js`. This keeps relationship definitions separate from model structure.
+
+```js
+// models/relaciones.js (representative)
+const Viaje = require('./viajesModel');
+const Usuario = require('./userModel');
+const Sucursal = require('./sucursalesModel');
+const Colaborador = require('./colaboradoresModel');
+const Transportista = require('./transportistasModel');
+
+Viaje.belongsTo(Usuario, { foreignKey: 'us_id' });
+Viaje.belongsTo(Sucursal, { foreignKey: 'sc_id' });
+Viaje.belongsTo(Colaborador, { foreignKey: 'cl_cedula' });
+Viaje.belongsTo(Transportista, { foreignKey: 'tr_id' });
+
+Colaborador.belongsToMany(Sucursal, {
+  through: 'colaborador_sucursal',
+  foreignKey: 'cl_cedula'
+});
+```
+
+## Static asset serving
+
+The `public/` directory is mounted at the root path using `express.static`:
+
+```js
+app.use(express.static('public'));
+```
+
+Requests for paths that resolve to files inside `public/` (CSS, client-side JS, images) are served directly by the static middleware and never reach the route handlers. This middleware runs before session parsing, so static assets incur no session overhead.

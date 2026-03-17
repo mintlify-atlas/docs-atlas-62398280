@@ -1,0 +1,93 @@
+---
+title: "Transportistas"
+description: "Manage transport carriers and their per-trip rates."
+---
+
+Transportistas are the carriers responsible for transporting employees on registered trips. Each transportista has a name, a tariff rate, and an active/inactive status. Carriers are selected when creating a viaje.
+
+## Data model
+
+| Column | Type | Description |
+|---|---|---|
+| `tr_id` | `INT` (auto PK) | Auto-generated primary key |
+| `tr_nombre` | `VARCHAR` | Carrier's full name |
+| `tr_tarifa` | `DECIMAL(7,2)` | Per-trip rate charged by the carrier |
+| `tr_estado` | `TINYINT` | `1` = active, `0` = soft-deleted |
+
+## Sample carriers
+
+| Name | Tariff |
+|---|---|
+| Gorge Mata | L. 55.00 |
+| Mayra Rosales | L. 50.00 |
+| Jose Valle | L. 52.00 |
+
+<Info>
+The `tr_tarifa` field stores the carrier's standard rate. The actual trip cost (`vj_costo`) is recorded separately on each viaje and may differ from the carrier's base tariff.
+</Info>
+
+## CRUD operations
+
+### List carriers
+
+```
+GET /transportistas
+```
+
+Renders the carriers management page with all transportista records.
+
+### Create a carrier
+
+```
+POST /transportistas/create
+```
+
+<ParamField body="tr_nombre" type="string" required>
+  Full name of the carrier.
+</ParamField>
+
+<ParamField body="tr_tarifa" type="number" required>
+  The carrier's standard per-trip rate. Stored as `DECIMAL(7,2)`, e.g., `55.00`.
+</ParamField>
+
+### Update a carrier
+
+Fetch the current carrier data for the edit form:
+
+```
+GET /transportistas/update/:id
+```
+
+Submit the updated data:
+
+```
+POST /transportistas/update
+```
+
+The same fields apply as for creation (`tr_nombre`, `tr_tarifa`).
+
+### Soft delete
+
+```
+POST /transportistas/delete/:id
+```
+
+Sets `tr_estado = 0` on the carrier record. The carrier is not permanently removed from the database.
+
+<Warning>
+Soft-deleting a carrier removes them from the carrier dropdown in the Viajes form. Existing trip records that reference the carrier are preserved.
+</Warning>
+
+## Effect on the Viajes module
+
+Only transportistas with `tr_estado = 1` are loaded into the trip creation form at `GET /viajes`. If a carrier is deactivated, they will no longer appear as an option for new trips.
+
+## Route summary
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/transportistas` | List all carriers |
+| `POST` | `/transportistas/create` | Create a new carrier |
+| `GET` | `/transportistas/update/:id` | Fetch carrier data for the edit form |
+| `POST` | `/transportistas/update` | Update a carrier record |
+| `POST` | `/transportistas/delete/:id` | Soft-delete a carrier (`tr_estado = 0`) |

@@ -1,0 +1,95 @@
+---
+title: "Configuration"
+description: "Configure the database connection, session secret, and server port for TRC - Sistema de Viajes."
+---
+
+## Database connection
+
+The database connection is defined in `config/Conexion.js`. Edit this file to match your MySQL credentials before starting the application.
+
+```js config/Conexion.js
+const { Sequelize } = require('sequelize');
+const sequelize = new Sequelize('sistema_viajes', 'root', '', {
+    host: 'localhost',
+    dialect: 'mysql',
+});
+module.exports = sequelize;
+```
+
+The `Sequelize` constructor accepts these positional arguments:
+
+| Position | Value | Description |
+|---|---|---|
+| 1 | `'sistema_viajes'` | Database name |
+| 2 | `'root'` | MySQL username |
+| 3 | `''` | MySQL password (empty by default) |
+
+Update the username and password to match your local MySQL setup. If you are running MySQL on a non-default port, add a `port` key to the options object:
+
+```js config/Conexion.js
+const sequelize = new Sequelize('sistema_viajes', 'your_user', 'your_password', {
+    host: 'localhost',
+    port: 3307,           // only needed if not using the default 3306
+    dialect: 'mysql',
+});
+```
+
+<Info>The SQL dump was generated from a MariaDB instance running on port 3307. If you imported it from that same instance, add `port: 3307` to your connection options.</Info>
+
+## Session secret
+
+Session configuration lives in `app.js`. The secret is used to sign the session ID cookie.
+
+```js app.js
+app.use(session({
+    secret: 'f93j2k!@#9sd8fjsd8fjsd8fj',
+    resave: false,
+    saveUninitialized: false
+}));
+```
+
+<Warning>Change the `secret` value before deploying to any shared or production environment. Use a long, randomly generated string. The default value in the repository is public and must not be used in production.</Warning>
+
+You can generate a secure secret from the command line:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Server port
+
+The application listens on port `3000` by default. You can override this with the `PORT` environment variable:
+
+```bash
+PORT=8080 node app.js
+```
+
+The relevant code in `app.js`:
+
+```js app.js
+const PORT = process.env.PORT || 3000;
+sequelize.sync().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+});
+```
+
+## Sequelize sync
+
+On startup, the application calls `sequelize.sync()`. This synchronizes Sequelize's model definitions with the existing database schema.
+
+<Note>`sequelize.sync()` without options does not alter or drop existing tables. It only creates tables that are missing. Because the SQL dump already creates all tables, sync is effectively a no-op after the first import — it just verifies the connection before the server starts accepting requests.</Note>
+
+If you need to reset the schema during development, you can use `sequelize.sync({ force: true })` temporarily, which drops and recreates all tables. **Do not use `force: true` with data you want to keep.**
+
+## Summary
+
+| Setting | File | Default |
+|---|---|---|
+| Database name | `config/Conexion.js` | `sistema_viajes` |
+| Database host | `config/Conexion.js` | `localhost` |
+| Database user | `config/Conexion.js` | `root` |
+| Database password | `config/Conexion.js` | *(empty)* |
+| Session secret | `app.js` | `f93j2k!@#9sd8fjsd8fjsd8fj` |
+| Server port | `app.js` / `PORT` env var | `3000` |

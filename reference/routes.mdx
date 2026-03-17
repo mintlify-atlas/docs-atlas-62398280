@@ -1,0 +1,276 @@
+---
+title: "Routes"
+description: "Complete HTTP route reference for the TRC Express application, organized by module."
+---
+
+All routes are defined in `app.js` and delegate to controllers in the `controllers/` directory. The application uses Express 5 with standard middleware-based session authentication.
+
+## Authentication requirements
+
+Two access levels exist:
+
+- **Authenticated** — requires a valid session (`req.session.user` must be set).
+- **Admin only** — requires a session where `rl_id = 1` (Gerente de Tienda). Standard users are redirected to `/dashboard`.
+
+<Warning>
+There is no token-based or API key authentication. Session state is stored in memory (express-session with the default in-memory store). Sessions are lost when the server restarts.
+</Warning>
+
+## Auth
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/user/login` | None | Authenticate with `correo` + `contra`; creates session and redirects to the appropriate dashboard |
+| `GET` | `/cerrar` | Authenticated | Destroys the current session and redirects to `/` |
+| `GET` | `/` | None | Renders the login page (`index.ejs`) |
+| `GET` | `/index` | None | Alias for `/`; renders `index.ejs` |
+| `GET` | `/dashboard` | Authenticated | Renders the standard user dashboard (`dashboard.ejs`) |
+| `GET` | `/dashboardAdmin` | Admin only | Renders the admin dashboard (`dashboardAdmin.ejs`) |
+
+<AccordionGroup>
+  <Accordion title="POST /user/login">
+
+  Authenticates a user by email and password.
+
+  **Request body:**
+
+  | Field | Type | Description |
+  |---|---|---|
+  | `correo` | `string` | User's email address (`us_correo`) |
+  | `contra` | `string` | Plain-text password; compared against the bcrypt hash in `usuarios.password` |
+
+  **Behavior:**
+  - On success, stores user data in `req.session.user` and redirects to `/dashboardAdmin` if `rl_id = 1`, otherwise to `/dashboard`.
+  - On failure (invalid credentials or inactive user), re-renders `index.ejs` with an error message.
+
+  </Accordion>
+
+  <Accordion title="GET /cerrar">
+
+  Terminates the active session.
+
+  - Calls `req.session.destroy()`.
+  - Redirects to `/` after the session is cleared.
+
+  </Accordion>
+</AccordionGroup>
+
+## Colaboradores
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/colaboradores` | Admin only | List all active collaborators with their branch assignments |
+| `POST` | `/colaboradores/create` | Admin only | Register a new collaborator and branch assignment (transactional) |
+| `GET` | `/colaboradores/update/:id` | Admin only | Return collaborator data as JSON for the edit form |
+| `POST` | `/colaboradores/update` | Admin only | Update a collaborator's record |
+| `POST` | `/colaboradores/delete/:id` | Admin only | Soft-delete a collaborator (`cl_estado = 0`) |
+
+<AccordionGroup>
+  <Accordion title="POST /colaboradores/create">
+
+  Creates a collaborator and a `colaborador_sucursal` record in a single database transaction.
+
+  **Request body:**
+
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `cl_cedula` | `string` | Yes | National ID; up to 13 characters; used as PK |
+  | `cl_nombre` | `string` | Yes | First name |
+  | `cl_apellido` | `string` | Yes | Last name |
+  | `cl_direccion` | `string` | Yes | Home address |
+  | `sucursal` | `number` | Yes | Branch `sc_id` |
+  | `distancia` | `number` | Yes | Distance in km (1–75) |
+
+  **On success:** redirects to `/colaboradores`.
+
+  </Accordion>
+
+  <Accordion title="GET /colaboradores/update/:id">
+
+  Returns the collaborator's current record as JSON. `:id` is `cl_cedula`.
+
+  **Response example:**
+
+  ```json
+  {
+    "cl_cedula": "0801199500123",
+    "cl_nombre": "Ana",
+    "cl_apellido": "Flores",
+    "cl_direccion": "Col. Kennedy, Tegucigalpa",
+    "cl_estado": 1
+  }
+  ```
+
+  </Accordion>
+
+  <Accordion title="POST /colaboradores/delete/:id">
+
+  Sets `cl_estado = 0` for the collaborator identified by `:id` (`cl_cedula`). The record is not removed from the database.
+
+  </Accordion>
+</AccordionGroup>
+
+## Viajes
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/viajes` | Admin only | Render the trip creation form with branches and carriers |
+| `GET` | `/viajes/:id` | Admin only | Return collaborators assigned to branch `sc_id = :id` as JSON |
+| `GET` | `/viajes/distancia/:cedula/:sucursal` | Admin only | Return the stored distance for a collaborator/branch pair as JSON |
+| `POST` | `/viajes/create` | Admin only | Create a new trip record |
+
+<AccordionGroup>
+  <Accordion title="GET /viajes/:id">
+
+  Returns active collaborators assigned to the specified branch. Used to populate the collaborator dropdown after branch selection.
+
+  **Path parameter:** `:id` — the `sc_id` of the branch.
+
+  **Response example:**
+
+  ```json
+  [
+    { "cl_cedula": "0801199500123", "cl_nombre": "Ana", "cl_apellido": "Flores" },
+    { "cl_cedula": "0501200100456", "cl_nombre": "Luis", "cl_apellido": "Reyes" }
+  ]
+  ```
+
+  </Accordion>
+
+  <Accordion title="GET /viajes/distancia/:cedula/:sucursal">
+
+  Returns the `distancia` value from `colaborador_sucursal` for the given collaborator and branch. Used to pre-fill the distance field in the trip form.
+
+  **Path parameters:**
+  - `:cedula` — the collaborator's `cl_cedula`.
+  - `:sucursal` — the branch `sc_id`.
+
+  **Response example:**
+
+  ```json
+  { "distancia": 38 }
+  ```
+
+  </Accordion>
+
+  <Accordion title="POST /viajes/create">
+
+  Creates a new trip record in the `viajes` table.
+
+  **Request body:**
+
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `usuario_vj` | `string` | Yes | Collaborator name; resolved to `cl_cedula` by the controller |
+  | `sucursal_vj` | `number` | Yes | Branch `sc_id` |
+  | `transportista_vj` | `number` | Yes | Carrier `tr_id` |
+  | `costo_vj` | `number` | Yes | Trip cost; must be greater than `0` |
+
+  The logged-in user's `us_id` is read from the session and stored in `viajes.us_id`.
+
+  **On success:** redirects to `/viajes`.
+
+  </Accordion>
+</AccordionGroup>
+
+## Sucursales
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/sucursales` | Admin only | List all active branches |
+| `POST` | `/sucursales/create` | Admin only | Create a new branch |
+| `GET` | `/sucursales/update/:id` | Admin only | Return branch data as JSON for the edit form |
+| `POST` | `/sucursales/update` | Admin only | Update a branch record |
+| `POST` | `/sucursales/delete/:id` | Admin only | Soft-delete a branch (`sc_estado = 0`) |
+
+<AccordionGroup>
+  <Accordion title="POST /sucursales/create">
+
+  **Request body:**
+
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `sc_nombre` | `string` | Yes | Branch name |
+  | `sc_direccion` | `string` | Yes | Branch address |
+
+  Sets `sc_estado = 1` automatically on creation.
+
+  </Accordion>
+
+  <Accordion title="GET /sucursales/update/:id">
+
+  Returns the branch record as JSON. `:id` is `sc_id`.
+
+  **Response example:**
+
+  ```json
+  {
+    "sc_id": 3,
+    "sc_nombre": "Sucursal Norte",
+    "sc_direccion": "Blvd. Morazán, Tegucigalpa",
+    "sc_estado": 1
+  }
+  ```
+
+  </Accordion>
+
+  <Accordion title="POST /sucursales/delete/:id">
+
+  Sets `sc_estado = 0` for the branch identified by `:id` (`sc_id`). The record is not removed from the database.
+
+  <Warning>
+  Soft-deleting a branch removes it from the Viajes form dropdowns. Existing `viajes` records that reference the branch are not affected.
+  </Warning>
+
+  </Accordion>
+</AccordionGroup>
+
+## Transportistas
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/transportistas` | Admin only | List all active carriers |
+| `POST` | `/transportistas/create` | Admin only | Create a new carrier |
+| `GET` | `/transportistas/update/:id` | Admin only | Return carrier data as JSON for the edit form |
+| `POST` | `/transportistas/update` | Admin only | Update a carrier record |
+| `POST` | `/transportistas/delete/:id` | Admin only | Soft-delete a carrier (`tr_estado = 0`) |
+
+<AccordionGroup>
+  <Accordion title="POST /transportistas/create">
+
+  **Request body:**
+
+  | Field | Type | Required | Description |
+  |---|---|---|---|
+  | `tr_nombre` | `string` | Yes | Carrier name |
+  | `tr_tarifa` | `number` | Yes | Per-trip rate; `DECIMAL(7,2)` |
+
+  Sets `tr_estado = 1` automatically on creation.
+
+  </Accordion>
+
+  <Accordion title="GET /transportistas/update/:id">
+
+  Returns the carrier record as JSON. `:id` is `tr_id`.
+
+  **Response example:**
+
+  ```json
+  {
+    "tr_id": 2,
+    "tr_nombre": "TransRapido",
+    "tr_tarifa": "150.00",
+    "tr_estado": 1
+  }
+  ```
+
+  </Accordion>
+</AccordionGroup>
+
+## Reports
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/reportes` | Admin only | Render the travel reports page (`reportes.ejs`) |
+
+The reports page aggregates trip data from the `viajes` table, joining across `colaboradores`, `sucursales`, and `transportistas` to display a full summary of all recorded trips.

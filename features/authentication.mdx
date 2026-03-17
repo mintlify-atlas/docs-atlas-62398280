@@ -1,0 +1,117 @@
+---
+title: "Authentication"
+description: "Session-based login, role-based routing, and logout flow for TRC."
+---
+
+TRC uses session-based authentication via `express-session`. When a user logs in, the server verifies their credentials against the database, stores the user record in the session, and redirects them to the appropriate dashboard based on their role.
+
+## Roles
+
+| `rl_id` | Role | Dashboard |
+|---|---|---|
+| `1` | Gerente de Tienda (admin) | `/dashboardAdmin` |
+| `2` | Usuario | `/dashboard` |
+
+<Info>
+The Gerente de Tienda role has access to all modules, including the trips (`/viajes`) page. The Usuario role has a restricted view.
+</Info>
+
+## Login
+
+### Endpoint
+
+```
+POST /user/login
+```
+
+### Request fields
+
+<ParamField body="correo" type="string" required>
+  The user's email address. Used to look up the account in the `usuarios` table via `us_correo`.
+</ParamField>
+
+<ParamField body="contra" type="string" required>
+  The user's password. Compared directly against the stored `password` field.
+</ParamField>
+
+### Login flow
+
+<Steps>
+  <Step title="Submit credentials">
+    Send a `POST` request to `/user/login` with `correo` and `contra` in the request body.
+
+    ```bash
+    curl -X POST http://localhost:3000/user/login \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "correo=admin@example.com&contra=secret"
+    ```
+  </Step>
+  <Step title="User lookup">
+    The server queries the `usuarios` table for a record matching `us_correo`. If no user is found, a `404` response is returned.
+  </Step>
+  <Step title="Password check">
+    The submitted password is compared against the stored value. If they do not match, a `401` response is returned.
+  </Step>
+  <Step title="Session creation">
+    On a successful match, the full user record is stored in `req.session.usuario`.
+  </Step>
+  <Step title="Role-based redirect">
+    The server reads `usuario.rl_id` and redirects accordingly:
+
+    - `rl_id === 1` → `/dashboardAdmin`
+    - All other roles → `/dashboard`
+  </Step>
+</Steps>
+
+### Error responses
+
+| Status | Condition | Response body |
+|---|---|---|
+| `404` | No user found for the given email | `{ "error": "Usuario no encontrado" }` |
+| `401` | Password does not match | `{ "error": "Credenciales inválidas" }` |
+| `500` | Unexpected server error | `{ "error": "Error en el servidor" }` |
+
+## Logout
+
+### Endpoint
+
+```
+GET /cerrar
+```
+
+Calling this route destroys the active session and redirects the user to `/index`.
+
+```js
+// Session is fully destroyed on logout
+req.session.destroy();
+res.redirect('/index');
+```
+
+<Warning>
+After logout, any attempt to access a protected route without a valid session will fail. Ensure your frontend redirects users away from protected pages after calling `/cerrar`.
+</Warning>
+
+## Session structure
+
+The session object stores the full user record after a successful login:
+
+```js
+req.session.usuario = {
+  us_id: 1,
+  us_nombre: 'Admin User',
+  us_correo: 'admin@example.com',
+  rl_id: 1,
+  // ...other user fields
+};
+```
+
+Route middleware should check for `req.session.usuario` before granting access to protected pages, and verify `req.session.usuario.rl_id === 1` for admin-only routes.
+
+## Route summary
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/user/login` | Authenticate a user and create a session |
+| `GET` | `/cerrar` | Destroy the current session and redirect to `/index` |
+| — | `/dashboardAdmin` | Admin landing page (requires `rl_id = 1`) |
+| — | `/dashboard` | Standard user landing page |

@@ -1,0 +1,158 @@
+---
+title: "Database setup"
+description: "Create the sistema_viajes MySQL database, import the schema and seed data, and understand the table structure."
+---
+
+## Create the database
+
+Connect to MySQL as root (or a user with `CREATE` privileges) and create the database:
+
+```sql
+CREATE DATABASE sistema_viajes;
+```
+
+## Import the SQL dump
+
+The repository includes a full SQL dump at `BD/sistema_viajes.sql`. This file creates all tables and inserts seed data.
+
+```bash
+mysql -u root -p sistema_viajes < BD/sistema_viajes.sql
+```
+
+You will be prompted for your MySQL password. Once the import completes, the database is fully populated and ready to use.
+
+<Note>The dump was generated with MariaDB 10.4.32 via phpMyAdmin. It is compatible with MySQL 5.7+ and MariaDB 10.4+.</Note>
+
+## Tables
+
+The `sistema_viajes` database contains seven tables.
+
+### `rol`
+
+Defines the two user roles in the system.
+
+| Column | Type | Description |
+|---|---|---|
+| `rl_id` | int (PK) | Role identifier |
+| `rl_nombre` | varchar(50) | Role name |
+| `rl_descripcion` | text | Role description |
+| `rl_estado` | tinyint(1) | Active status (1 = active) |
+
+### `usuarios`
+
+Application user accounts. Passwords are stored as plain text in the seed data — production use should hash with bcrypt.
+
+| Column | Type | Description |
+|---|---|---|
+| `us_id` | int (PK) | User identifier |
+| `us_nombre` | varchar(50) | Full name |
+| `rl_id` | int (FK → rol) | Assigned role |
+| `us_edad` | int | Age |
+| `us_fecha_creacion` | date | Account creation date |
+| `us_correo` | varchar(50) | Login email |
+| `password` | varchar(60) | Password |
+| `us_estado` | tinyint(1) | Active status |
+
+### `colaboradores`
+
+Employees who are transported via trips.
+
+| Column | Type | Description |
+|---|---|---|
+| `cl_cedula` | varchar(13) (PK) | National ID number |
+| `cl_nombre` | varchar(50) | First name |
+| `cl_apellido` | varchar(50) | Last name |
+| `cl_direccion` | text | Home address |
+| `cl_estado` | tinyint(1) | Active status |
+
+### `sucursales`
+
+Branch office locations.
+
+| Column | Type | Description |
+|---|---|---|
+| `sc_id` | int (PK, auto) | Branch identifier |
+| `sc_nombre` | varchar(50) | Branch name |
+| `sc_direccion` | text | Branch address |
+| `sc_estado` | tinyint(1) | Active status |
+
+### `colaborador_sucursal`
+
+Junction table linking collaborators to branch offices, with the distance from the collaborator's home to that branch.
+
+| Column | Type | Description |
+|---|---|---|
+| `cl_cedula` | varchar(13) (PK, FK → colaboradores) | Collaborator ID |
+| `sc_id` | int (PK, FK → sucursales) | Branch ID |
+| `distancia` | int | Distance in kilometers |
+
+### `transportistas`
+
+Carriers (drivers) available to be assigned to trips.
+
+| Column | Type | Description |
+|---|---|---|
+| `tr_id` | int (PK, auto) | Carrier identifier |
+| `tr_nombre` | varchar(50) | Carrier name |
+| `tr_tarifa` | decimal(7,2) | Per-trip rate |
+| `tr_estado` | tinyint(1) | Active status |
+
+### `viajes`
+
+Trip records created by users, linking a collaborator, branch office, and carrier.
+
+| Column | Type | Description |
+|---|---|---|
+| `vj_id` | int (PK, auto) | Trip identifier |
+| `us_id` | int (FK → usuarios) | User who created the trip |
+| `sc_id` | int (FK → sucursales) | Destination branch |
+| `cl_cedula` | varchar(13) (FK → colaboradores) | Traveling collaborator |
+| `tr_id` | int (FK → transportistas) | Assigned carrier |
+| `vj_costo` | decimal(7,2) | Trip cost |
+| `vj_fecha` | timestamp | Trip date (auto-updated) |
+| `vj_estado` | tinyint(1) | Active status |
+
+## Seed data
+
+The SQL dump includes the following records out of the box.
+
+### Roles
+
+| `rl_id` | `rl_nombre` | Description |
+|---|---|---|
+| 1 | Gerente de Tienda | Full admin access to all modules |
+| 2 | Usuario | Limited access |
+
+### Users
+
+| `us_id` | `us_nombre` | `rl_id` | `us_correo` | `password` |
+|---|---|---|---|---|
+| 1 | Nancy | 1 | `jpenia55@gmail.com` | `nancy` |
+| 2 | Josue | 2 | `7josueortega111@gmail.com` | `josue` |
+
+<Warning>The seed users store passwords as plain text. This is suitable for local development only. Do not deploy these accounts to a production environment.</Warning>
+
+### Branch offices (`sucursales`)
+
+| `sc_id` | `sc_nombre` | `sc_direccion` |
+|---|---|---|
+| 1 | SPS - Armenta | Boulevard de Armenta |
+| 2 | TGU - San ignasio | 4ta Calle Residencial San Ignacio |
+| 3 | CB - Villa Neen | 5ta Calle 3ave. |
+
+### Carriers (`transportistas`)
+
+| `tr_id` | `tr_nombre` | `tr_tarifa` |
+|---|---|---|
+| 1 | Gorge Mata | 55.00 |
+| 2 | Mayra Rosales | 50.00 |
+| 3 | Jose Valle | 52.00 |
+
+### Collaborators (`colaboradores`)
+
+| `cl_cedula` | `cl_nombre` | `cl_apellido` | Active |
+|---|---|---|---|
+| 0501199808765 | Jackeline | Peña | Yes |
+| 0502200203769 | Josue | Molina | Yes |
+| 7777777777777 | Erick | Ortega | Yes |
+| 8888888888888 | Erick | Molina | Yes |

@@ -1,0 +1,212 @@
+---
+title: "Data model"
+description: "Schema reference for all seven tables in the sistema_viajes database."
+---
+
+The `sistema_viajes` database contains seven tables. Six are entity tables and one (`colaborador_sucursal`) is a junction table that links collaborators to branches with a recorded distance.
+
+<Note>
+All entity tables use a `_estado` column (`TINYINT(1)`) for soft deletes. A value of `1` means the record is active; `0` means it has been soft-deleted and is excluded from list views and form dropdowns.
+</Note>
+
+## Entity-relationship overview
+
+```
+rol ──────────────── usuarios
+                        │
+                        │ us_id
+                        ▼
+sucursales ──── viajes ◄─── colaboradores
+    │             │
+    │ sc_id       │ tr_id
+    │             ▼
+    │         transportistas
+    │
+    └──── colaborador_sucursal ◄──── colaboradores
+              (junction table)
+```
+
+- `usuarios` belongs to a `rol`.
+- `viajes` references `usuarios`, `sucursales`, `colaboradores`, and `transportistas`.
+- `colaborador_sucursal` is a many-to-many junction between `colaboradores` and `sucursales`, storing the route distance.
+
+## Tables
+
+<AccordionGroup>
+  <Accordion title="colaboradores" icon="users">
+
+  Stores employee records. The national ID (`cl_cedula`) is the primary key.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `cl_cedula` | `VARCHAR(13)` | No | National ID number; primary key |
+  | `cl_nombre` | `VARCHAR(50)` | No | First name |
+  | `cl_apellido` | `VARCHAR(50)` | No | Last name |
+  | `cl_direccion` | `TEXT` | No | Home address |
+  | `cl_estado` | `TINYINT(1)` | No | `1` = active, `0` = soft-deleted |
+
+  **Constraints:**
+  - Primary key: `cl_cedula`
+  - Referenced by: `colaborador_sucursal.cl_cedula`, `viajes.cl_cedula`
+
+  </Accordion>
+
+  <Accordion title="colaborador_sucursal" icon="link">
+
+  Junction table linking each collaborator to a branch and recording the distance between them. Uses a composite primary key.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `cl_cedula` | `VARCHAR(13)` | No | Foreign key → `colaboradores.cl_cedula` |
+  | `sc_id` | `INT(11)` | No | Foreign key → `sucursales.sc_id` |
+  | `distancia` | `INT(11)` | No | Distance in km from the collaborator's address to the branch |
+
+  **Constraints:**
+  - Primary key: `(cl_cedula, sc_id)` — composite
+  - Foreign key: `cl_cedula` → `colaboradores(cl_cedula)`
+  - Foreign key: `sc_id` → `sucursales(sc_id)`
+
+  <Note>
+  The composite primary key means a collaborator can only be assigned to each branch once. A second assignment to the same branch would violate the PK constraint.
+  </Note>
+
+  </Accordion>
+
+  <Accordion title="sucursales" icon="building">
+
+  Branch office records. Referenced by `viajes` and `colaborador_sucursal`.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `sc_id` | `INT(11)` | No | Auto-increment primary key |
+  | `sc_nombre` | `VARCHAR(50)` | No | Branch name |
+  | `sc_direccion` | `TEXT` | No | Branch address |
+  | `sc_estado` | `TINYINT(1)` | No | `1` = active, `0` = soft-deleted |
+
+  **Constraints:**
+  - Primary key: `sc_id` (AUTO_INCREMENT)
+  - Referenced by: `colaborador_sucursal.sc_id`, `viajes.sc_id`
+
+  </Accordion>
+
+  <Accordion title="transportistas" icon="truck">
+
+  Carrier records with a per-trip rate.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `tr_id` | `INT(11)` | No | Auto-increment primary key |
+  | `tr_nombre` | `VARCHAR(50)` | No | Carrier name |
+  | `tr_tarifa` | `DECIMAL(7,2)` | No | Per-trip rate in local currency |
+  | `tr_estado` | `TINYINT(1)` | No | `1` = active, `0` = soft-deleted |
+
+  **Constraints:**
+  - Primary key: `tr_id` (AUTO_INCREMENT)
+  - Referenced by: `viajes.tr_id` (ON UPDATE CASCADE)
+
+  </Accordion>
+
+  <Accordion title="rol" icon="shield">
+
+  User role definitions. Only `rl_id = 1` (Gerente de Tienda) grants access to admin-only pages.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `rl_id` | `INT(11)` | No | Auto-increment primary key |
+  | `rl_nombre` | `VARCHAR(50)` | No | Role name (e.g., `Gerente de Tienda`) |
+  | `rl_descripcion` | `TEXT` | No | Human-readable role description |
+  | `rl_estado` | `TINYINT(1)` | No | `1` = active, `0` = inactive |
+
+  **Constraints:**
+  - Primary key: `rl_id` (AUTO_INCREMENT)
+  - Referenced by: `usuarios.rl_id` (ON UPDATE CASCADE)
+
+  </Accordion>
+
+  <Accordion title="usuarios" icon="user">
+
+  System user accounts. Each user belongs to one role.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `us_id` | `INT(11)` | No | Auto-increment primary key |
+  | `us_nombre` | `VARCHAR(50)` | No | Display name |
+  | `rl_id` | `INT(11)` | No | Foreign key → `rol.rl_id` |
+  | `us_edad` | `INT(11)` | No | Age |
+  | `us_fecha_creacion` | `DATE` | Yes | Account creation date; defaults to `current_timestamp()` |
+  | `us_correo` | `VARCHAR(50)` | No | Login email address |
+  | `password` | `VARCHAR(60)` | No | bcrypt password hash (60 chars) |
+  | `us_estado` | `TINYINT(1)` | No | `1` = active, `0` = soft-deleted |
+
+  **Constraints:**
+  - Primary key: `us_id` (AUTO_INCREMENT)
+  - Foreign key: `rl_id` → `rol(rl_id)` ON UPDATE CASCADE
+  - Referenced by: `viajes.us_id` (ON UPDATE CASCADE)
+
+  <Info>
+  The `password` field stores a 60-character bcrypt hash. The VARCHAR length of 60 matches the output size of bcrypt's `$2b$` format.
+  </Info>
+
+  </Accordion>
+
+  <Accordion title="viajes" icon="route">
+
+  Trip records. Each row represents a single trip connecting a user, branch, collaborator, and carrier.
+
+  | Column | Type | Nullable | Description |
+  |---|---|---|---|
+  | `vj_id` | `INT(11)` | No | Auto-increment primary key |
+  | `us_id` | `INT(11)` | No | Foreign key → `usuarios.us_id` — user who registered the trip |
+  | `sc_id` | `INT(11)` | No | Foreign key → `sucursales.sc_id` — destination branch |
+  | `cl_cedula` | `VARCHAR(13)` | No | Foreign key → `colaboradores.cl_cedula` — travelling collaborator |
+  | `tr_id` | `INT(11)` | No | Foreign key → `transportistas.tr_id` — assigned carrier |
+  | `vj_costo` | `DECIMAL(7,2)` | No | Trip cost in local currency |
+  | `vj_fecha` | `TIMESTAMP` | Yes | Trip date; defaults to `current_timestamp()`, updates on row change |
+  | `vj_estado` | `TINYINT(1)` | No | `1` = active |
+
+  **Constraints:**
+  - Primary key: `vj_id` (AUTO_INCREMENT)
+  - Foreign key: `tr_id` → `transportistas(tr_id)` ON UPDATE CASCADE
+  - Foreign key: `us_id` → `usuarios(us_id)` ON UPDATE CASCADE
+  - Foreign key: `sc_id` → `sucursales(sc_id)` ON UPDATE CASCADE
+  - Foreign key: `cl_cedula` → `colaboradores(cl_cedula)` ON UPDATE CASCADE
+
+  <Warning>
+  All four foreign key constraints use ON UPDATE CASCADE. Changing a primary key value in `usuarios`, `sucursales`, `transportistas`, or `colaboradores` will propagate to any linked `viajes` rows automatically.
+  </Warning>
+
+  </Accordion>
+</AccordionGroup>
+
+## Foreign key relationships
+
+| From table | Column | → To table | Column | On update |
+|---|---|---|---|---|
+| `usuarios` | `rl_id` | `rol` | `rl_id` | CASCADE |
+| `colaborador_sucursal` | `cl_cedula` | `colaboradores` | `cl_cedula` | — |
+| `colaborador_sucursal` | `sc_id` | `sucursales` | `sc_id` | — |
+| `viajes` | `us_id` | `usuarios` | `us_id` | CASCADE |
+| `viajes` | `sc_id` | `sucursales` | `sc_id` | CASCADE |
+| `viajes` | `cl_cedula` | `colaboradores` | `cl_cedula` | CASCADE |
+| `viajes` | `tr_id` | `transportistas` | `tr_id` | CASCADE |
+
+## Soft-delete pattern
+
+Every entity table (`colaboradores`, `sucursales`, `transportistas`, `usuarios`, `rol`) includes a `_estado` column of type `TINYINT(1)`. The application uses this column for logical deletion rather than removing rows from the database.
+
+- **Active record:** `_estado = 1`
+- **Soft-deleted record:** `_estado = 0`
+
+All list-view queries filter on `_estado = 1`. Soft-deleted records are hidden from the UI but their data — including any linked `viajes` rows — is preserved in the database.
+
+```sql
+-- Example: fetch only active carriers
+SELECT * FROM transportistas WHERE tr_estado = 1;
+
+-- Example: soft-delete a branch
+UPDATE sucursales SET sc_estado = 0 WHERE sc_id = 5;
+```
+
+<Tip>
+Because historical `viajes` rows reference soft-deleted records by foreign key, reports always show accurate cost and carrier data even after those records are deactivated.
+</Tip>

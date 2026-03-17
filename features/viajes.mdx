@@ -1,0 +1,147 @@
+---
+title: "Viajes"
+description: "Create and manage employee trips linking collaborators, branches, and carriers."
+---
+
+The Viajes module is the core of TRC. It allows administrators to register trips that connect a collaborator to a branch office via a specific carrier, recording the route distance and cost for each journey.
+
+<Warning>
+The `/viajes` page is restricted to users with `rl_id = 1` (Gerente de Tienda). Standard users cannot access this module.
+</Warning>
+
+## Trip fields
+
+| Field | Column | Type | Description |
+|---|---|---|---|
+| Trip ID | `vj_id` | `INT` (auto PK) | Auto-generated primary key |
+| Collaborator | `us_id` | `INT` | References the `usuarios` table |
+| Branch | `sc_id` | `INT` | References the `sucursales` table |
+| Carrier | `tr_id` | `INT` | References the `transportistas` table |
+| Cost | `vj_costo` | `DECIMAL(7,2)` | Trip cost; cannot be 0 or null |
+| Distance | `vj_recorrido` | `INT` | Route distance in km; must be 1–150 |
+| Date | `vj_fecha` | `DATE` | Trip date |
+| Status | `vj_estado` | `TINYINT` | `1` = active |
+
+## Validation rules
+
+<Tabs>
+  <Tab title="Cost">
+    The trip cost (`costo_vj`) must be a non-zero, non-null value.
+
+    ```js
+    if (costo_vj == 0 || costo_vj == null) {
+      throw new Error('El costo no puede ser 0');
+    }
+    ```
+
+    A cost of `0.00` is treated the same as a missing value and will be rejected.
+  </Tab>
+  <Tab title="Distance">
+    The route distance (`vj_recorrido`) must be between 1 and 150 km (inclusive of 1, exclusive of values above 150).
+
+    ```js
+    if (vj_recorrido > 150 || vj_recorrido <= 0) {
+      throw new Error('El recorrido no puede exceder los 100km o estar vacio');
+    }
+    ```
+
+    Values of `0` or below, and values above `150`, are both rejected.
+  </Tab>
+</Tabs>
+
+## Creating a trip
+
+### Endpoint
+
+```
+POST /viajes/create
+```
+
+### Request fields
+
+<ParamField body="usuario_vj" type="string" required>
+  The collaborator's name (`us_nombre`). The controller resolves this to a `us_id` by querying the `usuarios` table.
+</ParamField>
+
+<ParamField body="sucursal_vj" type="number" required>
+  The branch ID (`sc_id`) for the destination sucursal.
+</ParamField>
+
+<ParamField body="transportista_vj" type="number" required>
+  The carrier ID (`tr_id`) assigned to this trip.
+</ParamField>
+
+<ParamField body="costo_vj" type="number" required>
+  Trip cost in local currency. Must be greater than `0`.
+</ParamField>
+
+<ParamField body="vj_recorrido" type="number" required>
+  Route distance in kilometers. Must be between `1` and `150`.
+</ParamField>
+
+### Creation flow
+
+<Steps>
+  <Step title="Open the trips page">
+    Navigate to `/viajes`. The page loads active sucursales and transportistas from the database to populate the form dropdowns.
+  </Step>
+  <Step title="Select a branch">
+    Choose a branch from the sucursal dropdown. This triggers a request to the helper endpoint to load the collaborators assigned to that branch.
+  </Step>
+  <Step title="Select a collaborator">
+    Choose a collaborator from the dynamically loaded list. The form can optionally fetch the pre-calculated distance for that collaborator/branch pair.
+  </Step>
+  <Step title="Fill in carrier, cost, and distance">
+    Select a carrier (transportista), enter the trip cost, and confirm or enter the route distance.
+  </Step>
+  <Step title="Submit the form">
+    Submit the form. The server validates cost and distance, resolves `usuario_vj` to a `us_id`, and creates the viaje record with `vj_estado = 1`.
+  </Step>
+  <Step title="Redirect">
+    On success, the server redirects to `/viajes`.
+  </Step>
+</Steps>
+
+## Helper endpoints
+
+These endpoints return JSON and are used to populate form fields dynamically.
+
+### Get collaborators by branch
+
+```
+GET /viajes/:id
+```
+
+Returns a list of collaborators assigned to the branch with the given `sc_id`. Used to populate the collaborator dropdown after a branch is selected.
+
+**Response example:**
+
+```json
+[
+  { "us_id": 3, "us_nombre": "Maria Lopez" },
+  { "us_id": 7, "us_nombre": "Carlos Mejia" }
+]
+```
+
+### Get distance for a collaborator/branch pair
+
+```
+GET /viajes/distancia/:cedula/:sucursal
+```
+
+Returns the stored distance between a collaborator (identified by `cl_cedula`) and a specific branch. Used to pre-fill the `vj_recorrido` field.
+
+**Response example:**
+
+```json
+{ "distancia": 42 }
+```
+
+## Route summary
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| `GET` | `/viajes` | Admin only | Render the trips page with form data |
+| `GET` | `/viajes/:id` | Admin only | Get collaborators for a branch (JSON) |
+| `GET` | `/viajes/distancia/:cedula/:sucursal` | Admin only | Get distance for a collaborator/branch pair (JSON) |
+| `POST` | `/viajes/create` | Admin only | Create a new trip |

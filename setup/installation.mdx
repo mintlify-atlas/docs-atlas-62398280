@@ -1,0 +1,95 @@
+---
+title: "Installation"
+description: "Full setup guide for TRC - Sistema de Viajes, including prerequisites, cloning the repo, and the project directory structure."
+---
+
+## Prerequisites
+
+Ensure the following are installed before proceeding.
+
+| Requirement | Minimum version | Notes |
+|---|---|---|
+| Node.js | 18.x | LTS recommended |
+| npm | 9.x | Bundled with Node.js |
+| MySQL | 5.7+ | Or MariaDB 10.4+ |
+| Git | Any recent version | For cloning the repository |
+
+<Tip>You can verify your versions with `node -v`, `npm -v`, `mysql --version`, and `git --version`.</Tip>
+
+## Clone the repository
+
+```bash
+git clone https://github.com/molina071/TRC.git
+cd TRC
+```
+
+## Install dependencies
+
+<CodeGroup>
+
+```bash npm
+npm install
+```
+
+```bash yarn
+yarn install
+```
+
+</CodeGroup>
+
+This command installs all packages listed in `package.json`:
+
+| Package | Version | Purpose |
+|---|---|---|
+| `express` | ^5.2.1 | HTTP framework |
+| `sequelize` | ^6.37.7 | ORM for MySQL |
+| `mysql2` | ^3.16.1 | MySQL driver for Sequelize |
+| `ejs` | ^4.0.1 | Server-side HTML templating |
+| `express-session` | ^1.19.0 | Session management |
+| `bcrypt` | ^6.0.0 | Password hashing |
+| `body-parser` | ^2.2.2 | Request body parsing |
+
+<Note>The `mysql` package is also listed as a dependency for legacy compatibility, but Sequelize uses `mysql2` at runtime.</Note>
+
+## Directory structure
+
+After cloning and installing, your project directory looks like this:
+
+```
+TRC/
+├── app.js                  # Application entry point
+├── package.json
+├── config/
+│   └── Conexion.js         # Sequelize database connection
+├── controllers/            # Route handler logic
+├── models/                 # Sequelize model definitions
+│   ├── index.js
+│   ├── relaciones.js       # Model associations
+│   ├── colaboradoresModel.js
+│   ├── rolModel.js
+│   ├── suc_col_Model.js
+│   ├── sucursalesModel.js
+│   ├── transportistasModel.js
+│   ├── userModel.js
+│   └── viajesModel.js
+├── views/                  # EJS templates
+├── public/                 # Static assets (CSS, JS, images)
+└── BD/
+    └── sistema_viajes.sql  # Database dump with schema and seed data
+```
+
+## Start the application
+
+Once the database is configured (see [Database setup](/setup/database) and [Configuration](/setup/configuration)), start the server:
+
+```bash
+node app.js
+```
+
+The server starts on port 3000 by default. You can override this with the `PORT` environment variable:
+
+```bash
+PORT=8080 node app.js
+```
+
+<Info>Sequelize runs `sequelize.sync()` on startup, which verifies that the database schema matches the defined models before the HTTP server begins accepting requests.</Info>

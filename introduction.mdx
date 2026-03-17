@@ -1,0 +1,62 @@
+---
+title: "Introduction"
+description: "TRC is a full-stack web application for managing employee travel logistics across branch offices."
+---
+
+## What is TRC - Sistema de Viajes?
+
+TRC is a travel management system built for organizations that need to coordinate employee transportation between multiple branch offices. It provides a centralized platform where administrators can manage trips, employees, carriers, and branches — all in one place.
+
+<CardGroup cols={2}>
+  <Card title="Trip Management" icon="car" href="/features/viajes">
+    Create and track employee trips with cost and distance controls.
+  </Card>
+  <Card title="Collaborator Management" icon="users" href="/features/colaboradores">
+    Manage employees and their branch office assignments.
+  </Card>
+  <Card title="Branch Offices" icon="building" href="/features/sucursales">
+    Administer sucursales and their locations across the country.
+  </Card>
+  <Card title="Carriers" icon="truck" href="/features/transportistas">
+    Manage transport providers and their rates.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **Role-based access control** — Two roles: Gerente de Tienda (admin) and Usuario, each with different access levels
+- **Trip scheduling** — Create trips linking a collaborator, branch office, carrier, cost, and distance
+- **Distance validation** — Trips enforce a maximum route of 150 km
+- **Cost tracking** — Each trip records its cost; zero-cost trips are rejected
+- **Reports** — View a full travel report joining users, branches, and carriers
+- **Session management** — Secure session-based authentication via `express-session`
+- **MySQL database** — Backed by MySQL with Sequelize ORM and transactional writes
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js |
+| Framework | Express 5 |
+| Templating | EJS 4 |
+| ORM | Sequelize 6 |
+| Database | MySQL / MariaDB |
+| Sessions | express-session |
+| Password hashing | bcrypt |
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get the application running in minutes.
+  </Card>
+  <Card title="Installation" icon="download" href="/setup/installation">
+    Full setup guide with prerequisites.
+  </Card>
+  <Card title="Database Setup" icon="database" href="/setup/database">
+    Configure and seed your MySQL database.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/setup/configuration">
+    Environment and connection settings.
+  </Card>
+</CardGroup>
