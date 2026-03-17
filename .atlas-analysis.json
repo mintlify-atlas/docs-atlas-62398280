@@ -1,0 +1,98 @@
+{
+  "projectType": "saas",
+  "projectName": "TRC - Sistema de Viajes",
+  "projectDescription": "A full-stack web application for managing employee travel logistics, including trip scheduling, collaborator management, branch offices, and carrier assignments.",
+  "theme": "almond",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Setup",
+            "pages": ["setup/installation", "setup/database", "setup/configuration"]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": ["features/authentication"]
+          },
+          {
+            "group": "Core Modules",
+            "pages": [
+              "features/viajes",
+              "features/colaboradores",
+              "features/sucursales",
+              "features/transportistas"
+            ]
+          },
+          {
+            "group": "Reports",
+            "pages": ["features/reportes"]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Data Model",
+            "pages": [
+              "reference/data-model",
+              "reference/routes"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": ["reference/architecture"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Role-based access control (Admin / User)",
+    "Trip creation and management with cost and distance tracking",
+    "Collaborator management with branch-office assignments and distance records",
+    "Branch office (sucursales) CRUD management",
+    "Carrier (transportista) management with rate information",
+    "Travel reports with joined data across users, branches, and carriers",
+    "Session-based authentication using express-session",
+    "MySQL database via Sequelize ORM"
+  ],
+  "publicApiSurface": [
+    "POST /user/login",
+    "GET /viajes",
+    "GET /viajes/:id",
+    "GET /viajes/distancia/:cedula/:sucursal",
+    "POST /viajes/create",
+    "GET /colaboradores",
+    "POST /colaboradores/create",
+    "GET /colaboradores/update/:id",
+    "POST /colaboradores/update",
+    "POST /colaboradores/delete/:id",
+    "GET /sucursales",
+    "POST /sucursales/create",
+    "GET /sucursales/update/:id",
+    "POST /sucursales/update",
+    "POST /sucursales/delete/:id",
+    "GET /transportistas",
+    "POST /transportistas/create",
+    "GET /transportistas/update/:id",
+    "POST /transportistas/update",
+    "POST /transportistas/delete/:id",
+    "GET /reportes",
+    "GET /cerrar"
+  ]
+}
